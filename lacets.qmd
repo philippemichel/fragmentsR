@@ -1,0 +1,182 @@
+---
+title: "Lacets"
+author: "PhM"
+format: html
+---
+
+```{r}
+#| label: setup
+
+rm(list = ls())
+#
+library(baseph)
+library(janitor)
+library(tidyverse)
+library(gtsummary)
+library(kableExtra)
+library(lubridate)
+library(kableExtra)
+library(forestmodel)
+library(labelled)
+library(epiDisplay)
+library(visdat)
+library(GGally)
+library(ggridges)
+library(colorspace)
+library(xlsx)
+library(apyramid)
+library(plotly)
+library(plotROC)
+#
+theme_gtsummary_language(language = "fr", decimal.mark = ",")
+options(OutDec = ",")
+#
+ load("datas/stopnaco.RData")
+expx <- FALSE
+if (expx){system(paste0("rm -f ",classeur))}
+```
+
+```{r}
+#| label: complémements
+
+zz <- tt |> 
+  dplyr::select(c(delai_chirurgical,ddosage,groupe)) |> 
+  mutate(ddosage = factor(fct_recode(ddosage,
+    "50-100" = "> 100"
+  ))) |>
+  dplyr::filter(groupe == "après")
+```
+
+```{r}
+#| label: reg_simpl
+ll <- lm(delai_chirurgical ~ adl_avant +   bmi + ddosage , data = zz)
+summary(ll)
+```
+
+```{r}
+#| label: sample
+
+nc <- 1000
+#et.seed(123)
+aa <- sample_n(zz,nc, replace = TRUE)
+#
+ll <- lm(delai_chirurgical ~ adl_avant + ddosage , data = aa)
+summary(ll)
+```
+
+```{r}
+#| label: une_valeur
+nt <- NULL
+ne <- NULL
+ncas <- 100
+sqe <- seq(4600,4800,2)
+lil <- 1:ncas
+for (ncc in sqe){
+ # print(ncc)
+  nn <- rep(0,ncas)
+for (i in 1:ncas){
+  set.seed(floor(as.numeric(now())+i))
+  aa <- sample_n(zz,ncc, replace = TRUE)
+  ll <-  t.test(aa$delai_chirurgical~aa$ddosage)
+  nn[i] <- ll[[3]]
+}
+nt <- length(nn[nn<0.05])/length(nn)
+# print(nt)
+ne <- c(ne, nt)
+}
+
+```
+
+
+```{r}
+#| label: fig-val1
+#| fig-cap: T.test
+
+
+qq <- tibble(sqe,ne)
+qq |> 
+  ggplot() +
+  aes(x = sqe, y = ne) +
+  geom_point() +
+  geom_smooth() +
+  geom_hline(yintercept = .951)
+```
+
+
+```{r}
+#| label: fonction aa
+
+aa <- function(xx){
+  set.seed(xx)
+  aa <- slice_sample(zz,n= ncc, replace = TRUE)
+  ll <-  t.test(aa$delai_chirurgical~aa$ddosage)
+  return(ll[[3]])
+}
+```
+
+
+```{r}
+li <- 1:10
+df <- tibble(li)
+df |> 
+  mutate(x = aa(li))
+```
+
+
+
+```{r}
+aa <- function(ncas){
+qq <- slice_sample(zz, n= ncas , replace = TRUE)
+  ll <-  t.test(qq$delai_chirurgical~qq$ddosage)
+  return(ll[[3]])
+}
+#
+rtot <- NULL
+rttn <- NULL
+rttc <- seq(100,6000,50)
+for (nnc in rttc){
+ # print(nnc)
+rtt <- replicate(500, aa(nnc))
+lnn <-  length(rtt[rtt<0.05])/length(rtt)
+rttn <- c(rttn, lnn)
+}
+qq <- tibble(rttc,rttn)
+```
+
+```{r}
+#| label: correl
+
+ll <- lm(rttn ~ rttc, data = qq)
+summary(ll)
+nutil <- floor((0.951 - ll$coefficients[[1]]) / ll$coefficients[[2]]) +
+  1
+bb <- confint(ll)
+bsup <- floor((0.951 - bb[1, 1]) / bb[2, 1]) + 1
+binf <- floor((0.951 - bb[1, 2]) / bb[2, 2]) + 1
+nnconf <- paste0("n = ", nutil, " [", binf, ";", bsup, "]")
+print(nnconf)
+```
+
+
+```{r}
+#| label: fig-rep
+#| fig-cap: répétition
+
+qq |> 
+  mutate(ri = rttn > 0.95) |> 
+  ggplot() +
+  aes(x = rttc, y =rttn, color = ri) +
+  geom_point() +
+  geom_smooth(method = "loess") +
+  scale_x_continuous(breaks = seq(0,6000,250)) +
+  scale_y_continuous(, transform = "exp") +
+  geom_hline(yintercept = .95, color = "green") +
+  geom_vline(xintercept = 4770,color = "green") +
+  geom_vline(xintercept = 127, color = "red")
+
+```
+
+
+
+
+
